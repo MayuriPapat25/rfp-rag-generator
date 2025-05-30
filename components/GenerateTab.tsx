@@ -12,7 +12,7 @@ export default function GenerateTab() {
   const handleGenerateResponse = async () => {
     setError(null);
     setIsLoading(true);
-    setAnswer(""); // Clear previous answer
+    setAnswer("");
 
     try {
       const response = await fetch("/api/chat", {

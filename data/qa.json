@@ -1,0 +1,31 @@
+[
+  {
+    "id": "c61fabb1-65b6-46eb-9c29-0f3daec8c3cd",
+    "createdAt": 1748583200056,
+    "question": "How do you handle data backup and disaster recovery?",
+    "answer": "We implement automated daily backups with 3-2-1 backup strategy (3 copies, 2 different media, 1 offsite). RTO is 4 hours, RPO is 1 hour. We maintain geographically distributed backup centers and conduct quarterly DR tests.",
+    "category": "Data Protection",
+    "tags": [
+      "backup",
+      "disaster recovery",
+      "RTO",
+      "RPO",
+      "data protection"
+    ]
+  },
+  {
+    "id": "ac5d3602-715a-420d-846a-9e0317640fa0",
+    "createdAt": 1748590063398,
+    "question": "What security certifications does your hosting platform maintain?",
+    "answer": "Our platform maintains SOC 2 Type II, ISO 27001, and PCI DSS Level 1 certifications. We undergo annual third-party audits and maintain continuous compliance monitoring.",
+    "category": "Security Compliance",
+    "tags": [
+      "security",
+      "certifications",
+      "PCI DSS",
+      "compliance",
+      "SOC2",
+      "ISO27001"
+    ]
+  }
+]

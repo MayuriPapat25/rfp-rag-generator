@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "module": "esnext",
+    "module": "esnext", // or "es2020", "es2022", "nodenext"
+    "target": "esnext", // or "es2020", "es2022", "nodenext"
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -22,6 +22,15 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "next.config.js",
+    "utils/chunking.js",
+    "utils/document-loader.js",
+    "utils/vector-store.js"
+  ],
   "exclude": ["node_modules"]
 }

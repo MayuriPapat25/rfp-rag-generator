@@ -75,7 +75,7 @@ body {
 }
 
 .container{
-  @apply ml-5 mt-5
+  @apply mx-auto p-8 max-w-6xl min-h-screen
 }
 
 .container_header{@apply text-3xl font-bold mb-6 text-center text-gray-800}

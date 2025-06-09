@@ -28,9 +28,9 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "next.config.js",
-    "utils/chunking.js",
+    "utils/chunking.ts",
     "utils/document-loader.js",
-    "utils/vector-store.js"
+    "utils/vector-store.ts"
   ],
   "exclude": ["node_modules"]
 }

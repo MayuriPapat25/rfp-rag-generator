@@ -1,136 +1,243 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "../components/ui/tabs";
-import { Button } from "../components/ui/button";
-import { Textarea } from "../components/ui/textarea";
-import KnowledgeBase from "../components/KnowledgeBase";
-import AddQAPairForm from "../components/AddQAPairForm";
-import DocumentUploader from "../components/DocumentUploader";
-import { FileText, Lightbulb, ClipboardList } from "lucide-react";
-import { v4 as uuidv4 } from "uuid";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Trash2 } from "lucide-react"; // Import Trash2 icon
 
 export default function Home() {
-  const [question, setQuestion] = useState("");
-  const [response, setResponse] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(
+    null
+  ); // To track which project is being deleted
 
-  const handleGenerateResponse = async () => {
-    if (!question.trim()) return;
+  useEffect(() => {
+    fetchProjects();
+  }, []);
 
+  const fetchProjects = async () => {
     setIsLoading(true);
-    setResponse("");
+    setError(null);
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ question }),
-      });
-
-      if (!res.ok || !res.body) {
+      const res = await fetch("/api/projects");
+      if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedResponse = "";
-
-      // Read the stream
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        accumulatedResponse += chunk;
-        setResponse(accumulatedResponse); // Update state with each chunk
-      }
-
-      console.log("Full response received:", accumulatedResponse);
-    } catch (error) {
-      console.error("Failed to generate response:", error);
-      setResponse("Error: Could not generate response. Please try again.");
+      const data = await res.json();
+      setProjects(data.projects);
+    } catch (e: any) {
+      setError(`Failed to fetch projects: ${e.message}`);
+      console.error(e);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    } else {
+      setSelectedFile(null);
+    }
+  };
+
+  const createProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!newProjectName.trim()) {
+      setError("Project name cannot be empty.");
+      return;
+    }
+
+    setIsCreatingProject(true);
+    const formData = new FormData();
+    formData.append("name", newProjectName);
+    if (selectedFile) {
+      formData.append("file", selectedFile);
+    }
+
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
+      }
+
+      const result = await res.json();
+      setNewProjectName("");
+      setSelectedFile(null);
+      setSuccessMessage(result.message);
+      await fetchProjects();
+    } catch (e: any) {
+      setError(`Failed to create project: ${e.message}`);
+      console.error(e);
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
+
+  const handleDeleteProject = async (
+    projectId: string,
+    projectName: string
+  ) => {
+    // IMPORTANT: In a production app, use a custom modal for confirmation
+    const confirmed = window.confirm(
+      `Are you sure you want to delete the project "${projectName}" (ID: ${projectId})? This action cannot be undone.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingProjectId(projectId); // Set loading state for this specific project
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const res = await fetch(`/api/projects?id=${projectId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
+      }
+
+      setSuccessMessage(`Project "${projectName}" deleted successfully.`);
+      // Optimistically remove the project from the list without refetching all
+      setProjects((prevProjects) =>
+        prevProjects.filter((p) => p._id !== projectId)
+      );
+      // Or, uncomment below to always re-fetch for guaranteed sync:
+      // await fetchProjects();
+    } catch (e: any) {
+      setError(`Failed to delete project "${projectName}": ${e.message}`);
+      console.error(e);
+    } finally {
+      setDeletingProjectId(null); // Clear loading state
+    }
+  };
+
   return (
-    <div className="container">
-      <div>
-        <h1 className="container_header">RFP Q&A Response Generator</h1>
-        <p className="container_desc">
-          RAG-powered system for generating hosting platform and InfoSec RFQ
-          responses
-        </p>
-        <Tabs defaultValue="generate" className="w-full">
-          <TabsList className="tablist">
-            <TabsTrigger value="generate" className="tabsTrigger">
-              <FileText className="mr-2 h-4 w-4" /> Generate
-            </TabsTrigger>
-            <TabsTrigger value="knowledge" className="tabsTrigger">
-              <Lightbulb className="mr-2 h-4 w-4" /> Knowledge
-            </TabsTrigger>
-            <TabsTrigger value="manage" className="tabsTrigger">
-              <ClipboardList className="mr-2 h-4 w-4" /> Manage
-            </TabsTrigger>
-          </TabsList>
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">
+          RFP Q&A Projects
+        </h1>
 
-          <TabsContent value="generate">
-            <div className="tabContent">
-              <div>
-                <h2 className="tabContentHeader">RFP/RFQ Question</h2>
-                <Textarea
-                  className="tabTextArea"
-                  rows={6}
-                  placeholder="Enter the RFP/RFQ question you need to respond to..."
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                />
-              </div>
-              <Button
-                className="generateButton"
-                onClick={handleGenerateResponse}
-                disabled={isLoading || !question.trim()}
+        {/* Create New Project Form */}
+        <form
+          onSubmit={createProject}
+          className="mb-8 p-4 bg-gray-50 rounded-md"
+        >
+          <h2 className="text-xl font-semibold mb-3 text-gray-700">
+            Create New Project
+          </h2>
+          <input
+            type="text"
+            value={newProjectName}
+            onChange={(e) => setNewProjectName(e.target.value)}
+            placeholder="Enter new project name"
+            className="w-full p-3 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500"
+            required
+          />
+          {/* File Input */}
+          <label
+            htmlFor="project-file-upload"
+            className="block text-sm font-medium text-gray-700 mb-2 mt-4"
+          >
+            Optional: Upload initial RFP file (.docx, .pdf, .txt)
+          </label>
+          <input
+            id="project-file-upload"
+            type="file"
+            onChange={handleFileChange}
+            className="w-full p-2 border border-gray-300 rounded-md file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            accept=".pdf,.docx,.txt"
+          />
+          {selectedFile && (
+            <p className="text-sm text-gray-600 mt-2">
+              Selected: {selectedFile.name}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white p-3 rounded-md hover:bg-blue-700 transition duration-300 ease-in-out font-semibold mt-6"
+            disabled={isCreatingProject}
+          >
+            {isCreatingProject ? "Creating Project..." : "Create Project"}
+          </button>
+          {error && (
+            <p className="text-red-600 mt-2 text-sm text-center">{error}</p>
+          )}
+          {successMessage && (
+            <p className="text-green-600 mt-2 text-sm text-center">
+              {successMessage}
+            </p>
+          )}
+        </form>
+
+        {/* Project List */}
+        <h2 className="text-xl font-semibold mb-4 text-gray-700">
+          Existing Projects
+        </h2>
+        {isLoading ? (
+          <p className="text-gray-600 text-center">Loading projects...</p>
+        ) : projects.length === 0 ? (
+          <p className="text-gray-600 text-center">
+            No projects found. Create one above!
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {projects.map((project) => (
+              <li
+                key={project._id}
+                className="bg-white border border-gray-200 rounded-md p-4 shadow-sm hover:shadow-md transition-shadow duration-200 flex items-center justify-between"
               >
-                {isLoading ? "Generating..." : "Generate Response"}
-              </Button>
-
-              {response && (
-                <div className="responseWrapper">
-                  <h2 className="responseText">Generated Response</h2>
-                  <Textarea
-                    className="responseTextArea"
-                    rows={10}
-                    readOnly
-                    value={response}
-                  />
-                  <p className="tabTextArea">
-                    Please review and customize this response before using in
-                    your RFP submission.
+                <Link
+                  href={`/chat/${project._id}`}
+                  className="block text-blue-600 hover:text-blue-800 font-medium text-lg flex-grow" // flex-grow to take available space
+                >
+                  {project.name}
+                  <span className="text-sm text-gray-500 ml-2">
+                    {" "}
+                    (ID: {project._id})
+                  </span>
+                </Link>
+                <div className="flex items-center">
+                  <p className="text-xs text-gray-500 mt-1 mr-4">
+                    Created: {new Date(project.createdAt).toLocaleDateString()}
                   </p>
+                  <button
+                    onClick={() =>
+                      handleDeleteProject(project._id, project.name)
+                    }
+                    className="ml-2 p-1 rounded-full text-red-500 hover:bg-red-100 hover:text-red-700 transition-colors duration-200"
+                    disabled={deletingProjectId === project._id} // Disable button if currently deleting
+                    title={`Delete project ${project.name}`}
+                  >
+                    {deletingProjectId === project._id ? (
+                      <span className="text-sm">...</span> // Simple loading indicator
+                    ) : (
+                      <Trash2 className="h-5 w-5" />
+                    )}
+                  </button>
                 </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="knowledge">
-            <KnowledgeBase />
-          </TabsContent>
-
-          <TabsContent value="manage">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <AddQAPairForm />
-              <DocumentUploader />
-            </div>
-          </TabsContent>
-        </Tabs>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

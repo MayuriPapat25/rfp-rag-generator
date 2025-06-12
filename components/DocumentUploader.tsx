@@ -1,111 +1,142 @@
-// components/DocumentUploader.tsx
 "use client";
 
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Upload } from "lucide-react"; // Icon
+import { UploadCloud, Loader2, CheckCircle, XCircle } from "lucide-react";
 
-export default function DocumentUploader() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
-  const [docMessage, setDocMessage] = useState("");
-  const [docError, setDocError] = useState(false);
+interface DocumentUploaderProps {
+  onFileUpload: (fileDetails: { name: string; projectName: string }) => void;
+  selectedProjectName: string | null; // This prop is crucial
+}
+
+export default function DocumentUploader({
+  onFileUpload,
+  selectedProjectName,
+}: DocumentUploaderProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<
+    "idle" | "uploading" | "success" | "error"
+  >("idle");
+  const [uploadMessage, setUploadMessage] = useState<string>("");
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setSelectedFile(event.target.files[0]);
-      setDocMessage("");
-      setDocError(false);
+    if (event.target.files && event.target.files.length > 0) {
+      setFile(event.target.files[0]);
+      setUploadStatus("idle"); // Reset status on new file selection
+      setUploadMessage("");
     } else {
-      setSelectedFile(null);
+      setFile(null);
     }
   };
 
-  const handleDocumentUpload = async () => {
-    if (!selectedFile) {
-      setDocMessage("Please select a file to upload.");
-      setDocError(true);
+  const handleUpload = async () => {
+    if (!file) {
+      setUploadMessage("Please select a file to upload.");
+      setUploadStatus("error");
+      return;
+    }
+    if (!selectedProjectName) {
+      setUploadMessage("Please select a project from the left sidebar first.");
+      setUploadStatus("error");
       return;
     }
 
-    setIsUploadingDoc(true);
-    setDocMessage("");
-    setDocError(false);
+    setUploadStatus("uploading");
+    setUploadMessage("Uploading and processing file...");
 
     const formData = new FormData();
-    formData.append("file", selectedFile);
+    formData.append("file", file);
+    formData.append("projectName", selectedProjectName); // Pass the selected project name
 
     try {
-      const res = await fetch("/api/upload", {
+      const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUploadStatus("success");
+        setUploadMessage(
+          data.message || "File uploaded and processed successfully!"
+        );
+        onFileUpload({ name: file.name, projectName: selectedProjectName });
+        setFile(null); // Clear file input after successful upload
+      } else {
+        const errorData = await response.json();
+        setUploadStatus("error");
+        setUploadMessage(errorData.error || "File upload failed.");
+        console.error("Upload error:", errorData);
       }
-
-      setDocMessage("File uploaded and processed successfully!");
-      setSelectedFile(null);
-    } catch (err: any) {
-      console.error("File upload failed:", err);
-      setDocMessage(`Error uploading file: ${err.message}`);
-      setDocError(true);
-    } finally {
-      setIsUploadingDoc(false);
+    } catch (error) {
+      setUploadStatus("error");
+      setUploadMessage("Network error or unexpected issue during upload.");
+      console.error("Upload fetch error:", error);
     }
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
       <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center">
-        <Upload className="mr-2 h-5 w-5" /> Upload Documents
+        <UploadCloud className="mr-2 h-5 w-5 text-purple-600" /> Upload
+        Documents
       </h2>
-      <div className="space-y-4">
-        <p className="text-gray-700 text-sm">
-          Supported formats: .docx, .txt, .pdf (content extraction is a
-          placeholder for docx/pdf)
+      <p className="text-sm text-gray-600 mb-4">
+        Upload documents(.docx, .pdf, .txt) to expand the knowledge base for the
+        selected project.
+      </p>
+
+      {!selectedProjectName && (
+        <p className="text-red-500 text-sm mb-4 font-medium">
+          Please select a project from the left sidebar before uploading
+          documents.
         </p>
-        <div>
-          <label
-            htmlFor="document-upload"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Select File
-          </label>
-          <Input
-            id="document-upload"
-            type="file"
-            accept=".pdf,.docx,.txt"
-            onChange={handleFileChange}
-            className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 focus-visible:ring-blue-500"
-            disabled={isUploadingDoc}
-          />
-          {selectedFile && (
-            <p className="mt-2 text-sm text-gray-600">
-              Selected: {selectedFile.name}
-            </p>
-          )}
-        </div>
+      )}
+
+      <div className="flex flex-col space-y-4">
+        <Input
+          type="file"
+          className="file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:border-none file:rounded-md file:py-2 file:px-4"
+          onChange={handleFileChange}
+          accept=".pdf,.txt,.docx" // Specify accepted file types
+          disabled={!selectedProjectName || uploadStatus === "uploading"}
+        />
         <Button
-          onClick={handleDocumentUpload}
-          className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          disabled={isUploadingDoc || !selectedFile}
+          onClick={handleUpload}
+          disabled={
+            !file || uploadStatus === "uploading" || !selectedProjectName
+          }
+          className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white"
         >
-          {isUploadingDoc ? "Uploading..." : "Upload Document"}
+          {uploadStatus === "uploading" ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...
+            </>
+          ) : (
+            <>
+              <UploadCloud className="mr-2 h-4 w-4" /> Upload
+            </>
+          )}
         </Button>
-        {docMessage && (
-          <p
-            className={`mt-4 text-center text-sm ${
-              docError ? "text-red-500" : "text-green-600"
-            }`}
-          >
-            {docMessage}
-          </p>
-        )}
       </div>
+
+      {uploadMessage && (
+        <div
+          className={`mt-4 p-3 rounded-md text-sm flex items-center ${
+            uploadStatus === "success"
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
+          }`}
+        >
+          {uploadStatus === "success" ? (
+            <CheckCircle className="mr-2 h-4 w-4" />
+          ) : (
+            <XCircle className="mr-2 h-4 w-4" />
+          )}
+          {uploadMessage}
+        </div>
+      )}
     </div>
   );
 }

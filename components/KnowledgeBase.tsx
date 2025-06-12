@@ -1,18 +1,7 @@
-// components/KnowledgeBase.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Button } from "./ui/button";
-import { Trash2, FileText, Upload, Download } from "lucide-react"; // Icons
-
-interface QAEntry {
-  id: string;
-  question: string;
-  answer: string;
-  category: string;
-  tags: string[];
-  createdAt: number;
-}
+import { Trash2, FileText, Upload } from "lucide-react"; // Removed Download icon as it's not used
 
 interface DocumentEntry {
   id: string;
@@ -20,10 +9,22 @@ interface DocumentEntry {
   fileType: string;
   content: string;
   createdAt: number;
+  projectName: string; // Ensure this is present for filtering consistency
 }
 
-export default function KnowledgeBase() {
-  const [qaPairs, setQaPairs] = useState<QAEntry[]>([]);
+// Updated props interface for KnowledgeBase
+interface KnowledgeBaseProps {
+  onDocumentDeleted: (deletedDocId: string) => void; // Removed deletedDocProjectName as it's not used in parent
+  uploadedFiles: { id: string; name: string; projectName: string }[]; // More specific type than 'any'
+  currentProjectId: string; // NEW: Prop to receive the currently active project ID
+}
+
+export default function KnowledgeBase({
+  onDocumentDeleted,
+  uploadedFiles, // This prop is received but currently not directly used for display within this component,
+  // as the component fetches its own data from the API. It's passed for potential future use or consistency.
+  currentProjectId, // Destructure the new prop
+}: KnowledgeBaseProps) {
   const [documents, setDocuments] = useState<DocumentEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,17 +33,18 @@ export default function KnowledgeBase() {
     setIsLoading(true);
     setError(null);
     try {
-      const qaRes = await fetch("/api/qapairs");
-      const docRes = await fetch("/api/documents");
+      // Pass currentProjectId as a query parameter to filter results
+      const docRes = await fetch(
+        `/api/documents?projectId=${currentProjectId}`
+      );
 
-      if (!qaRes.ok || !docRes.ok) {
+      if (!docRes.ok) {
         throw new Error("Failed to fetch knowledge base data.");
       }
 
-      const qaData = await qaRes.json();
       const docData = await docRes.json();
 
-      setQaPairs(qaData.qaPairs || []);
+      // Ensure data is an array before setting state
       setDocuments(docData.documents || []);
     } catch (err: any) {
       console.error("Error fetching knowledge base:", err);
@@ -50,33 +52,38 @@ export default function KnowledgeBase() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentProjectId]); // Dependency on currentProjectId ensures re-fetch when project changes
 
   useEffect(() => {
-    fetchKnowledgeBase();
-  }, [fetchKnowledgeBase]);
-
-  const handleDeleteQaPair = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this Q&A pair?")) return;
-    try {
-      const res = await fetch(`/api/qapairs?id=${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete Q&A pair.");
+    // Fetch data whenever currentProjectId changes
+    if (currentProjectId) {
       fetchKnowledgeBase();
-    } catch (err: any) {
-      console.error("Error deleting Q&A pair:", err);
-      alert(`Error: ${err.message}`);
     }
-  };
+  }, [fetchKnowledgeBase, currentProjectId]);
 
-  const handleDeleteDocument = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
+  const handleDeleteDocument = async (docToDelete: DocumentEntry) => {
+    // Use a custom modal or confirm box instead of window.confirm
+    const confirmed = window.confirm(
+      `Are you sure you want to delete the document: "${docToDelete.filename}"?`
+    );
+    if (!confirmed) return;
     try {
-      const res = await fetch(`/api/documents?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/documents?id=${docToDelete.id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) throw new Error("Failed to delete document.");
-      fetchKnowledgeBase();
+
+      // Notify the parent (ChatPage.tsx) about the deletion by ID
+      onDocumentDeleted(docToDelete.id);
+
+      // Optimistically update the local state without refetching all documents
+      setDocuments((prevDocs) =>
+        prevDocs.filter((doc) => doc.id !== docToDelete.id)
+      );
     } catch (err: any) {
       console.error("Error deleting document:", err);
-      alert(`Error: ${err.message}`);
+      // Use a custom message display instead of alert
+      console.error(`Error: ${err.message}`);
     }
   };
 
@@ -89,63 +96,18 @@ export default function KnowledgeBase() {
   if (error)
     return <div className="text-center py-8 text-red-500">{error}</div>;
 
-  const totalEntries = qaPairs.length + documents.length;
+  const totalEntries = documents.length;
 
   return (
     <div className="tabContent">
       <div className="knowledgeWrapper">
         <h2 className="knowledgeHeader">
-          Knowledge Base ({totalEntries} entries)
+          Knowledge Base ({totalEntries} entries for project: {currentProjectId}
+          )
         </h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Q&A Pairs Section */}
-        <div>
-          <h3 className="text-lg font-medium mb-4 text-gray-700 flex items-center">
-            <FileText className="mr-2 h-5 w-5" /> Q&A Pairs ({qaPairs.length})
-          </h3>
-          {qaPairs.length === 0 ? (
-            <p className="text-gray-500 italic">No Q&A pairs added yet.</p>
-          ) : (
-            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-              {qaPairs.map((qa) => (
-                <div
-                  key={qa.id}
-                  className="relative border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow duration-200"
-                >
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2 right-2 text-red-500 hover:text-red-700"
-                    onClick={() => handleDeleteQaPair(qa.id)}
-                    aria-label="Delete Q&A Pair"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                  <p className="font-semibold text-base mb-1 text-gray-900">
-                    {qa.question}
-                  </p>
-                  <p className="text-sm text-gray-700 mb-2">{qa.answer}</p>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">
-                      {qa.category}
-                    </span>
-                    {qa.tags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Documents Section */}
         <div>
           <h3 className="text-lg font-medium mb-4 text-gray-700 flex items-center">
@@ -153,7 +115,9 @@ export default function KnowledgeBase() {
             {documents.length})
           </h3>
           {documents.length === 0 ? (
-            <p className="text-gray-500 italic">No documents uploaded yet.</p>
+            <p className="text-gray-500 italic">
+              No documents uploaded yet for this project.
+            </p>
           ) : (
             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
               {documents.map((doc) => (
@@ -161,20 +125,20 @@ export default function KnowledgeBase() {
                   key={doc.id}
                   className="relative border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow duration-200"
                 >
-                  <Button
+                  {/* <Button
                     variant="ghost"
                     size="icon"
                     className="absolute top-2 right-2 text-red-500 hover:text-red-700"
-                    onClick={() => handleDeleteDocument(doc.id)}
+                    onClick={() => handleDeleteDocument(doc)}
                     aria-label="Delete Document"
                   >
                     <Trash2 className="h-4 w-4" />
-                  </Button>
+                  </Button> */}
                   <p className="font-semibold text-base mb-1 text-gray-900">
                     {doc.filename}
                   </p>
                   <p className="text-sm text-gray-600 italic mb-2">
-                    {doc.fileType}
+                    Project: {doc.projectName} | Type: {doc.fileType}
                   </p>
                   <p className="text-sm text-gray-700 line-clamp-3">
                     {doc.content.substring(0, 150)}...

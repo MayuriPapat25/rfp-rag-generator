@@ -4,7 +4,8 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 // Environment variable for MongoDB connection string
 // In a Next.js app, these are typically accessed via process.env
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI =
+  process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/rfp_rag_db";
 
 if (!MONGODB_URI) {
   throw new Error(
@@ -47,7 +48,7 @@ export interface IChatHistoryEntry extends Document {
 const DocumentSchema: Schema = new Schema({
   filename: { type: String, required: true },
   fileType: { type: String, required: true },
-  content: { type: String, required: true },
+  content: { type: String, required: false },
   embedding: { type: [Number], required: false }, // Array of numbers
   projectName: { type: String, required: true, index: true }, // Index for efficient querying
   createdAt: { type: Date, default: Date.now }, // Mongoose handles default timestamp
@@ -77,17 +78,17 @@ const ChatHistorySchema: Schema = new Schema({
 
 // Mongoose Models
 // Use a check to prevent recompiling models in Next.js development mode
-export const DocumentModel: Model<IDocumentEntry> =
-  mongoose.models.Document ||
-  mongoose.model<IDocumentEntry>("Document", DocumentSchema);
+export const DocumentModel =
+  mongoose?.models?.Document ||
+  mongoose?.model<IDocumentEntry>("Document", DocumentSchema);
 // export const QAModel: Model<IQAEntry> =
 //   mongoose.models.QA || mongoose.model<IQAEntry>("QA", QASchema);
 export const ProjectModel: Model<IProjectEntry> =
-  mongoose.models.Project ||
-  mongoose.model<IProjectEntry>("Project", ProjectSchema);
+  mongoose?.models?.Project ||
+  mongoose?.model<IProjectEntry>("Project", ProjectSchema);
 export const ChatHistoryModel: Model<IChatHistoryEntry> =
-  mongoose.models.ChatHistory ||
-  mongoose.model<IChatHistoryEntry>("ChatHistory", ChatHistorySchema); // NEW MODEL
+  mongoose?.models?.ChatHistory ||
+  mongoose?.model<IChatHistoryEntry>("ChatHistory", ChatHistorySchema); // NEW MODEL
 
 // Database connection
 let isConnected = false;
@@ -124,6 +125,7 @@ export async function addDocument(
   await connectDB();
   try {
     const newDoc = new DocumentModel(docData);
+    console.log("newDoc", newDoc);
     const savedDoc = await newDoc.save();
     console.log(
       "Document added to MongoDB with ID:",

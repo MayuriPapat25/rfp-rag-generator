@@ -35,87 +35,116 @@ export async function POST(req: Request) {
       `Upload API: Processing file: ${filename}, type: ${fileType}, project: ${projectName}`
     );
 
+    const embeddingsModel = new OllamaEmbeddings({
+      baseUrl: process.env.OLLAMA_BASE_URL || "http://localhost:11434",
+      model: process.env.OLLAMA_EMBEDDING_MODEL || "nomic-embed-text", // Default to nomic-embed-text
+    });
+
+    const vectorStore = new FaissStore(embeddingsModel, {});
+
     let fileContent = "";
-    const buffer = Buffer.from(await file.arrayBuffer());
-    switch (fileType) {
-      case "text/plain":
-        fileContent = buffer.toString("utf-8");
-        console.log(`Upload API: Successfully read text file content.`);
-        break;
-      case "application/pdf":
-        try {
-          const data = await pdfParse(buffer);
-          fileContent = data.text;
-          console.log(
-            `Upload API: Successfully parsed PDF content. Content length: ${fileContent.length}`
-          );
-        } catch (pdfError: any) {
-          console.error(
-            "Upload API: Error parsing PDF file:",
-            pdfError.message
-          );
-          fileContent = `Error parsing PDF: ${filename}. Content could not be extracted. Reason: ${pdfError.message}`;
-        }
-        break;
-      case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        try {
-          console.log("Upload API: Attempting to parse DOCX with mammoth...");
-          const result = await mammoth.extractRawText({ buffer: buffer });
-          fileContent = result.value;
-          console.log(
-            `Upload API: Successfully parsed DOCX content. Content length: ${fileContent.length}`
-          );
-        } catch (docxError: any) {
-          console.error(
-            "Upload API: Error parsing DOCX file:",
-            docxError.message
-          );
-          fileContent = `Error parsing DOCX: ${filename}. Content could not be extracted. Reason: ${docxError.message}`;
-        }
-        break;
-      default:
-        console.error(`Upload API: Unsupported file type: ${fileType}`);
-        return NextResponse.json(
-          { error: "Unsupported file type." },
-          { status: 400 }
-        );
-    }
+
+    const loader = new PDFLoader(file);
+    const docs = await loader.load();
+    console.log("Loaded PDF:", docs);
+
+    const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 1000,
+      chunkOverlap: 200,
+    });
+
+    const allSplits = await splitter.splitDocuments(docs);
+    console.log("Split PDF:", allSplits);
+
+    await vectorStore.addDocuments(allSplits);
+    const vectorDbDir = path.join("./vectors/");
+    console.log("vectorDbDir", { vectorDbDir });
+
+    // save to disk
+    await vectorStore.save(`${vectorDbDir}/${filename}`);
+    console.log("vectorStore", vectorStore);
+    // commented for using Faiss
+    // const buffer = Buffer.from(await file.arrayBuffer());
+    // switch (fileType) {
+    //   case "text/plain":
+    //     fileContent = buffer.toString("utf-8");
+    //     console.log(`Upload API: Successfully read text file content.`);
+    //     break;
+    //   case "application/pdf":
+    //     try {
+    //       console.log("Upload API: Attempting to parse PDF with pdfParse...");
+    //       const data = await pdfParse(buffer);
+    //       fileContent = data.text;
+    //       console.log(
+    //         `Upload API: Successfully parsed PDF content. Content length: ${fileContent.length}`
+    //       );
+    //     } catch (pdfError: any) {
+    //       console.error(
+    //         "Upload API: Error parsing PDF file:",
+    //         pdfError.message
+    //       );
+    //       fileContent = `Error parsing PDF: ${filename}. Content could not be extracted. Reason: ${pdfError.message}`;
+    //     }
+    //     break;
+    //   case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    //     try {
+    //       console.log("Upload API: Attempting to parse DOCX with mammoth...");
+    //       const result = await mammoth.extractRawText({ buffer: buffer });
+    //       fileContent = result.value;
+    //       console.log(
+    //         `Upload API: Successfully parsed DOCX content. Content length: ${fileContent.length}`
+    //       );
+    //     } catch (docxError: any) {
+    //       console.error(
+    //         "Upload API: Error parsing DOCX file:",
+    //         docxError.message
+    //       );
+    //       fileContent = `Error parsing DOCX: ${filename}. Content could not be extracted. Reason: ${docxError.message}`;
+    //     }
+    //     break;
+    //   default:
+    //     console.error(`Upload API: Unsupported file type: ${fileType}`);
+    //     return NextResponse.json(
+    //       { error: "Unsupported file type." },
+    //       { status: 400 }
+    //     );
+    // }
 
     // Generate actual embedding for the content using Ollama
     // Ensure fileContent is not empty or an error message before generating embedding
-    if (!fileContent || fileContent.startsWith("Error parsing")) {
-      console.warn(
-        "Upload API: Skipping embedding generation and document storage due to empty or errored file content."
-      );
-      return NextResponse.json({
-        message:
-          "File uploaded but content extraction failed. Document not added to knowledge base.",
-        status: "warning",
-        id: "extraction-failed-id",
-      });
-    } else {
-      const embedding = await generateEmbedding(fileContent);
-      console.log("Upload API: Generated actual embedding with Ollama.");
+    // if (!fileContent || fileContent.startsWith("Error parsing")) {
+    //   console.warn(
+    //     "Upload API: Skipping embedding generation and document storage due to empty or errored file content."
+    //   );
+    //   return NextResponse.json({
+    //     message:
+    //       "File uploaded but content extraction failed. Document not added to knowledge base.",
+    //     status: "warning",
+    //     id: "extraction-failed-id",
+    //   });
+    // } else {
+    const embedding = await generateEmbedding(fileContent);
+    console.log("Upload API: Generated actual embedding with Ollama.");
 
-      // Store document in MongoDB via addDocument from lib/db.ts
-      const newDocumentEntry = {
-        // Omit<IDocumentEntry, '_id' | 'createdAt'>
-        filename,
-        fileType,
-        content: fileContent,
-        embedding,
-        projectName, // Pass projectName to addDocument
-      };
-      const addedDoc = await addDocument(newDocumentEntry); // addDocument returns IDocumentEntry with _id/createdAt
-      console.log("Upload API: Stored document in MongoDB.", addedDoc);
+    // Store document in MongoDB via addDocument from lib/db.ts
+    const newDocumentEntry = {
+      // Omit<IDocumentEntry, '_id' | 'createdAt'>
+      filename,
+      fileType,
+      content: "1",
+      embedding: [],
+      projectName, // Pass projectName to addDocument
+    };
+    const addedDoc = await addDocument(newDocumentEntry); // addDocument returns IDocumentEntry with _id/createdAt
+    console.log("Upload API: Stored document in MongoDB.", addedDoc);
 
-      // The DocumentUploader on the frontend expects an 'id' in the response.
-      return NextResponse.json({
-        message: "File uploaded and processed successfully.",
-        id: addedDoc._id.toString(), // Return the MongoDB-generated _id as string
-        status: "success",
-      });
-    }
+    // The DocumentUploader on the frontend expects an 'id' in the response.
+    return NextResponse.json({
+      message: "File uploaded and processed successfully.",
+      id: addedDoc._id.toString(), // Return the MongoDB-generated _id as string
+      status: "success",
+    });
+    // }
   } catch (error: any) {
     console.error(
       "Upload API: General error during file upload process:",

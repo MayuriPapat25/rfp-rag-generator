@@ -1,13 +1,28 @@
 import { NextResponse } from "next/server";
-
+import mammoth from "mammoth";
+import pdfParse from "pdf-parse";
 import { addDocument, getDocuments } from "@/lib/db"; // Import getDocuments
-import { generateEmbedding } from "@/lib/embeddings"; // Assuming generateEmbedding exists and uses Ollama
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { FaissStore } from "@langchain/community/vectorstores/faiss";
-import { OllamaEmbeddings } from "@langchain/ollama";
+import { ChatOllama, OllamaEmbeddings } from "@langchain/ollama";
 import path from "node:path";
 import { v4 as uuidv4 } from "uuid";
+import { Document } from "@langchain/core/documents";
+import fs from "fs";
+
+export interface DocumentEntryInput {
+  filename: string;
+  fileType: string;
+  content: string;
+  embedding: any[];
+  projectName: string;
+}
+// Helper function to convert File to Buffer
+async function fileToBuffer(file: File): Promise<Buffer> {
+  const arrayBuffer = await file.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
 
 export async function POST(req: Request) {
   try {
@@ -17,14 +32,9 @@ export async function POST(req: Request) {
     const file = formData.get("file") as File;
     const projectName = formData.get("projectName") as string; // Extract projectName
 
-    if (!file) {
-      console.error("Upload API: No file received.");
-      return NextResponse.json({ error: "No file received." }, { status: 400 });
-    }
-    if (!projectName) {
-      console.error("Upload API: No project name received.");
+    if (!file || !projectName) {
       return NextResponse.json(
-        { error: "Project name is required." },
+        { error: "File and projectName are required." },
         { status: 400 }
       );
     }
@@ -50,38 +60,67 @@ export async function POST(req: Request) {
       model: process.env.OLLAMA_EMBEDDING_MODEL || "nomic-embed-text", // Default to nomic-embed-text
     });
 
-    const vectorStore = new FaissStore(embeddingsModel, {});
+    const buffer = await fileToBuffer(file);
+    let documents: Document[] = [];
 
-    let fileContent = "";
-
-    const loader = new PDFLoader(file);
-    const docs = await loader.load();
-    console.log("Loaded PDF:", docs);
+    if (fileType === "application/pdf") {
+      const pdfData = await pdfParse(buffer);
+      documents = [
+        new Document({ pageContent: pdfData.text, metadata: { filename } }),
+      ];
+    } else if (
+      fileType ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      filename.endsWith(".docx")
+    ) {
+      const result = await mammoth.extractRawText({ buffer });
+      documents = [
+        new Document({ pageContent: result.value, metadata: { filename } }),
+      ];
+    } else if (fileType === "text/plain" || filename.endsWith(".txt")) {
+      const text = buffer.toString("utf-8");
+      documents = [new Document({ pageContent: text, metadata: { filename } })];
+    } else {
+      return NextResponse.json(
+        { error: "Unsupported file type." },
+        { status: 400 }
+      );
+    }
 
     const splitter = new RecursiveCharacterTextSplitter({
       chunkSize: 1000,
       chunkOverlap: 200,
     });
 
-    const allSplits = await splitter.splitDocuments(docs);
-    console.log("Split PDF:", allSplits);
+    const chunks = await splitter.splitDocuments(documents);
+    console.log("chunks PDF:", chunks);
 
     // Assign a unique ID to each chunk
-    const allSplitsWithIds = allSplits.map((chunk) => ({
+    const chunksWithIds = chunks.map((chunk) => ({
       ...chunk,
       id: uuidv4(),
     }));
 
-    await vectorStore.addDocuments(allSplitsWithIds);
+    // Initialize FAISS from documents
+    const vectorStore = await FaissStore.fromDocuments(
+      chunksWithIds,
+      embeddingsModel
+    );
+
+    await vectorStore.addDocuments(chunksWithIds);
+
+    // await vectorStore.addDocuments(allSplitsWithIds);
     const vectorDbDir = path.join("./vectors/");
     console.log("vectorDbDir", { vectorDbDir });
-
+    if (!fs.existsSync(vectorDbDir)) {
+      fs.mkdirSync(vectorDbDir, { recursive: true });
+    }
     // save to disk
     await vectorStore.save(`${vectorDbDir}/${filename}`);
     console.log("vectorStore", vectorStore);
 
     // Store document in MongoDB via addDocument from lib/db.ts
-    const newDocumentEntry = {
+    const newDocumentEntry: DocumentEntryInput = {
       // Omit<IDocumentEntry, '_id' | 'createdAt'>
       filename,
       fileType,

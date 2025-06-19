@@ -1,5 +1,5 @@
-import { loadVectorData } from "../../../lib/utils";
 import ChatInterface from "../../../components/ChatInterface";
+import { getProjects } from "@/lib/db"; // or a getProjectById if you have one
 
 interface ChatPageProps {
   params: {
@@ -7,8 +7,16 @@ interface ChatPageProps {
   };
 }
 
-export default function ChatPage({ params }: ChatPageProps) {
-  const shards = loadVectorData(params.projectId);
-  console.log("shards 12", shards);
-  return <ChatInterface projectId={params.projectId} />;
+export default async function ChatPage({ params }: ChatPageProps) {
+  const allProjects = await getProjects();
+  const project = allProjects.find(
+    (p) => p._id.toString() === params.projectId
+  );
+
+  // Fallback if not found
+  const projectName = project ? project.name : params.projectId;
+
+  return (
+    <ChatInterface projectId={params.projectId} projectName={projectName} />
+  );
 }

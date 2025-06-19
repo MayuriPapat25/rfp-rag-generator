@@ -17,6 +17,7 @@ interface KnowledgeBaseProps {
   onDocumentDeleted: (deletedDocId: string) => void; // Removed deletedDocProjectName as it's not used in parent
   uploadedFiles: { id: string; name: string; projectName: string }[]; // More specific type than 'any'
   currentProjectId: string; // NEW: Prop to receive the currently active project ID
+  currentProjectName: string;
 }
 
 export default function KnowledgeBase({
@@ -24,6 +25,7 @@ export default function KnowledgeBase({
   uploadedFiles, // This prop is received but currently not directly used for display within this component,
   // as the component fetches its own data from the API. It's passed for potential future use or consistency.
   currentProjectId, // Destructure the new prop
+  currentProjectName,
 }: KnowledgeBaseProps) {
   const [documents, setDocuments] = useState<DocumentEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,8 +104,8 @@ export default function KnowledgeBase({
     <div className="tabContent">
       <div className="knowledgeWrapper">
         <h2 className="knowledgeHeader">
-          Knowledge Base ({totalEntries} entries for project: {currentProjectId}
-          )
+          Knowledge Base ({totalEntries} entries for project:{" "}
+          {currentProjectName})
         </h2>
       </div>
 

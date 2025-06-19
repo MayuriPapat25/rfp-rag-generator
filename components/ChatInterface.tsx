@@ -30,9 +30,13 @@ interface UploadedFileDetail {
 
 interface ChatInterfaceProps {
   projectId: string;
+  projectName: string;
 }
 
-export default function ChatInterface({ projectId }: ChatInterfaceProps) {
+export default function ChatInterface({
+  projectId,
+  projectName,
+}: ChatInterfaceProps) {
   const router = useRouter();
 
   const [question, setQuestion] = useState("");
@@ -147,7 +151,7 @@ export default function ChatInterface({ projectId }: ChatInterfaceProps) {
 
   const handleDeleteCurrentProject = async () => {
     const confirmed = window.confirm(
-      `Are you sure you want to delete the current project "${projectId}"? This action cannot be undone.`
+      `Are you sure you want to delete the current project "${projectName}"? This action cannot be undone.`
     );
     if (!confirmed) {
       return;
@@ -209,7 +213,7 @@ export default function ChatInterface({ projectId }: ChatInterfaceProps) {
           <div className="flex items-center justify-between text-blue-800 font-bold p-1 rounded-md bg-blue-200">
             <span className="flex items-center">
               <FileText className="mr-2 h-4 w-4 text-blue-600" />
-              <span>{projectId}</span>
+              <span>{projectName}</span>
             </span>
             <button
               onClick={handleDeleteCurrentProject}
@@ -231,7 +235,7 @@ export default function ChatInterface({ projectId }: ChatInterfaceProps) {
       </aside>
       <div className="flex-1 p-6">
         <h1 className="container_header">
-          RFP Q&A Response Generator for {projectId}
+          RFP Q&A Response Generator for {projectName}
         </h1>
         <p className="container_desc">
           RAG-powered system for generating hosting platform and InfoSec RFQ
@@ -257,7 +261,7 @@ export default function ChatInterface({ projectId }: ChatInterfaceProps) {
                 <p className="text-sm text-gray-600 mb-2">
                   Generating response for project:{" "}
                   <span className="font-semibold text-blue-700">
-                    {projectId}
+                    {projectName}
                   </span>
                 </p>
                 <Textarea
@@ -299,6 +303,7 @@ export default function ChatInterface({ projectId }: ChatInterfaceProps) {
               uploadedFiles={uploadedFiles}
               onDocumentDeleted={handleDocumentDeletedFromKnowledgeBase}
               currentProjectId={projectId}
+              currentProjectName={projectName}
             />
           </TabsContent>
 

@@ -1,6 +1,4 @@
-import { OllamaEmbeddings } from "@langchain/community/embeddings/ollama";
-import { FaissStore } from "@langchain/community/vectorstores/faiss";
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { OllamaEmbeddings } from "@langchain/ollama";
 import path from "node:path";
 
 const vectorDbDir = path.join(__dirname);

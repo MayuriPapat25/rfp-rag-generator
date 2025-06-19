@@ -59,9 +59,6 @@ export default function ProjectManager() {
     setIsCreatingProject(true);
     const formData = new FormData();
     formData.append("name", newProjectName);
-    if (selectedFile) {
-      formData.append("file", selectedFile);
-    }
 
     try {
       const res = await fetch("/api/projects", {
@@ -76,8 +73,24 @@ export default function ProjectManager() {
 
       const result = await res.json();
       setNewProjectName("");
-      setSelectedFile(null);
       setSuccessMessage(result.message);
+
+      // 2. If a file is selected, upload it
+      if (selectedFile) {
+        const uploadForm = new FormData();
+        uploadForm.append("file", selectedFile);
+        uploadForm.append("projectName", result.project._id); // Use the new project ID
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: uploadForm,
+        });
+        if (!uploadRes.ok) {
+          const uploadError = await uploadRes.json();
+          throw new Error(uploadError.error || "File upload failed");
+        }
+        setSelectedFile(null);
+      }
+
       await fetchProjects();
     } catch (e: any) {
       setError(`Failed to create project: ${e.message}`);

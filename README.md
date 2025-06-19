@@ -1,6 +1,6 @@
-Project Overview: The RFP Q&A RAG (Retrieval-Augmented Generation) application is designed to efficiently answer Requests for Proposals (RFPs) and Requests for Quotations (RFQs) by leveraging a customized knowledge base. Instead of relying solely on a large language model's pre-trained knowledge, it retrieves relevant, domain-specific information from your uploaded documents and uses that as context to generate precise answers. This approach significantly reduces "hallucinations" (incorrect or made-up information) and ensures responses are directly grounded in your proprietary data.
+# Project Overview: The RFP Q&A RAG (Retrieval-Augmented Generation) application is designed to efficiently answer Requests for Proposals (RFPs) and Requests for Quotations (RFQs) by leveraging a customized knowledge base. Instead of relying solely on a large language model's pre-trained knowledge, it retrieves relevant, domain-specific information from your uploaded documents and uses that as context to generate precise answers. This approach significantly reduces "hallucinations" (incorrect or made-up information) and ensures responses are directly grounded in your proprietary data.
 
-Model Choice: Specific Ollama Models Used
+# Model Choice: Specific Ollama Models Used
 The application leverages the Ollama ecosystem for both text generation and embedding:
 Ollama Chat Model (OLLAMA_CHAT_MODEL = "qwen3:0.6b" / "llama2"):
 
@@ -15,13 +15,13 @@ This model is specifically designed to create high-quality text embeddings (nume
 nomic-embed-text is noted for its high performance and large token context window, surpassing some other popular embedding models.
 Crucially, it is an "embedding-only" model, meaning its sole purpose is to generate embeddings; it cannot be used for direct chat or generation like qwen3:0.6b.
 
-Chunking Strategy: For splitting documents into manageable pieces suitable for vector embedding and semantic search, we implemented LangChain’s RecursiveCharacterTextSplitter. It was configured with a chunkSize of 1000 characters and a chunkOverlap of 200 characters. This splitter recursively attempts to break text at increasingly granular semantic boundaries (\n\n, \n, space, then character), ensuring chunks remain logically coherent and minimize mid-sentence or mid-word breaks.
+# Chunking Strategy: For splitting documents into manageable pieces suitable for vector embedding and semantic search, we implemented LangChain’s RecursiveCharacterTextSplitter. It was configured with a chunkSize of 1000 characters and a chunkOverlap of 200 characters. This splitter recursively attempts to break text at increasingly granular semantic boundaries (\n\n, \n, space, then character), ensuring chunks remain logically coherent and minimize mid-sentence or mid-word breaks.
 
 This approach was selected after testing alternatives like CharacterTextSplitter, which often split at arbitrary positions leading to incoherent chunks, and TokenTextSplitter, which, while token-aware, introduced additional dependency and configuration complexity. RecursiveCharacterTextSplitter provided the best balance of semantic preservation, simplicity, and consistent performance across formats like .pdf, .docx, and .txt.
 
 These structured chunks are then embedded using OllamaEmbeddings and stored in a FAISS vector index, enabling accurate semantic retrieval and robust performance in retrieval-augmented generation (RAG) workflows.
 
-Dynamic Prompting: To ensure accurate and context-aware responses to RFP/RFQ questions, our system uses a static but highly specialized prompt template tailored for professional, factual answering. This prompt is dynamically populated with the user’s question and the retrieved context from the FAISS vector store. It explicitly instructs the language model (via Ollama) to:
+# Dynamic Prompting: To ensure accurate and context-aware responses to RFP/RFQ questions, our system uses a static but highly specialized prompt template tailored for professional, factual answering. This prompt is dynamically populated with the user’s question and the retrieved context from the FAISS vector store. It explicitly instructs the language model (via Ollama) to:
 
 Only rely on the retrieved context (no external knowledge),
 
@@ -50,7 +50,7 @@ RFP/RFQ Question: ${question}
 Direct Answer:`;
 This approach ensures reliable, on-policy outputs suitable for enterprise use cases like RFP automation, where factual integrity and auditability are critical. While we currently use a single structured prompt, the system is designed to be extendable — future enhancements may include multi-intent prompting, fine-tuned classification, or adaptive reasoning chains depending on query type.
 
-How to Run: 
+# How to Run: 
 1. Clone the Repository
    git clone https://github.com/your-username/rfp-rag-generator.git
    cd rfp-rag-generator
@@ -60,13 +60,13 @@ How to Run:
    npm install or pnpm install
 4. Set Up Environment Variables
    Create a .env.local file in the root directory and add the following values:
-  # URL of your local or remote Ollama instance
+URL of your local or remote Ollama instance
   OLLAMA_BASE_URL=http://localhost:11434
-  # Embedding model name (make sure it's downloaded in Ollama)
+Embedding model name (make sure it's downloaded in Ollama)
   OLLAMA_EMBEDDING_MODEL=nomic-embed-text
-  # MongoDB connection string
+MongoDB connection string
   MONGODB_URI=mongodb://localhost:27017/rfp_rag
-  # MongoDB database name
+MongoDB database name
   MONGODB_DB_NAME=rfp_rag
 
   💡 Tip: If you're using Ollama for the first time, install and start it locally:

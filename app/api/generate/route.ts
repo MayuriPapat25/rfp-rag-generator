@@ -5,6 +5,7 @@ import { loadProjectFaissStore } from "@/lib/server/faiss";
 
 // const OLLAMA_CHAT_MODEL = "llama2";
 const OLLAMA_CHAT_MODEL = "qwen3:0.6b";
+// const OLLAMA_CHAT_MODEL = "llama3:instruct";
 
 interface FormattedDocumentEntry {
   id: string;
@@ -56,11 +57,11 @@ export async function POST(req: Request) {
     console.log("relevantDocs 63", relevantDocs);
 
     const contextText = relevantDocs
-      .map((doc) => {
+      .map((doc: any) => {
         // LangChain Document has pageContent and metadata
-        return `Document Entry (Project: ${
-          doc.metadata.projectName || "N/A"
-        }):\nFilename: ${doc.metadata.filename}\nContent: ${doc.pageContent}`;
+        return `Document Entry (Project: ${doc?.id || "N/A"}):\nFilename: ${
+          doc?.metadata?.filename
+        }\nContent: ${doc?.pageContent}`;
       })
       .join("\n\n---\n\n");
 
@@ -72,24 +73,26 @@ export async function POST(req: Request) {
     console.log("Complete contextText being sent to LLM:\n", contextText);
 
     // Prompt remains the same
-    const prompt = `You are an expert in hosting platforms and information security, tasked with drafting official responses to critical RFP/RFQ questions. Your primary directive is to provide factual, direct, and concise answers.
+    const prompt = `You are a compliance-focused assistant responsible for answering RFP/RFQ questions using ONLY the exact context provided below.
 
-    **CRITICAL GUIDELINES**:
-    1.  Your sole source of truth is the "Provided Context" below.
-    2.  If the exact information required to answer the RFP/RFQ question is NOT explicitly contained within the "Provided Context", you MUST respond with: "I do not have enough information in the knowledge base to answer this question."
-    3.  DO NOT generate any information that is not directly supported by the "Provided Context".
-    4.  Your final response MUST be ONLY the direct answer to the RFP/RFQ question. Do NOT include any introductory phrases, conversational elements, preambles, or explanations of your reasoning.
-
+    RESTRICTIONS:
+    - DO NOT include <think> blocks or any internal monologue.
+    - DO NOT explain or describe your reasoning.
+    - DO NOT fabricate or infer anything not directly in the context.
+    - DO NOT refuse to answer if the exact answer is present.
+    - DO NOT add commentary.
+    - Your answer MUST be only the content found in the context, quoted exactly if applicable.
+    
     Provided Context:
     ${
       contextText ||
       "No relevant information found in the provided context to answer the question."
     }
-
+    
     ---
-
+    
     RFP/RFQ Question: ${question}
-
+    
     Direct Answer:`;
 
     console.log("Final prompt being sent to Ollama:\n", prompt);

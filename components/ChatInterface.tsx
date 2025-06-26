@@ -18,7 +18,7 @@ import {
   Lightbulb,
   ClipboardList,
   UploadCloud,
-  Trash2,
+  Trash2
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
@@ -47,6 +47,10 @@ export default function ChatInterface({
   const [projectDeleteError, setProjectDeleteError] = useState<string | null>(
     null
   );
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -109,6 +113,24 @@ export default function ChatInterface({
     });
   };
 
+  useEffect(() => {
+    const fetchChatHistory = async () => {
+      setIsHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const res = await fetch(`/api/chat_history?projectId=${projectId}`);
+        if (!res.ok) throw new Error("Failed to fetch chat history");
+        const data = await res.json();
+        setChatHistory(data.chatHistory || []);
+      } catch (e: any) {
+        setHistoryError(e.message || "Unknown error");
+      } finally {
+        setIsHistoryLoading(false);
+      }
+    };
+    fetchChatHistory();
+  }, [projectId]);
+
   const handleGenerateResponse = async () => {
     if (!question.trim()) return;
 
@@ -138,6 +160,22 @@ export default function ChatInterface({
         const chunk = decoder.decode(value, { stream: true });
         accumulatedResponse += chunk;
         setResponse(accumulatedResponse);
+      }
+
+      if (accumulatedResponse.trim()) {
+        try {
+          await fetch("/api/chat_history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectId,
+              question,
+              answer: accumulatedResponse,
+            }),
+          });
+        } catch (e) {
+          console.error("Failed to save chat history", e);
+        }
       }
 
       console.log("Full response received:", accumulatedResponse);
@@ -200,7 +238,10 @@ export default function ChatInterface({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-64 bg-gray-100 p-4 border-r border-gray-200 flex flex-col">
+      <aside className="w-80 bg-gray-100 p-4 border-r border-gray-200 flex flex-col">
+        <div>
+          <h1 className="text-xl font-bold">RFP Assistant</h1>
+        </div>
         <div className="mt-4 border-t pt-4">
           <Link href="/" className="text-blue-600 hover:underline">
             ← Back to All Projects
@@ -231,16 +272,41 @@ export default function ChatInterface({
           {projectDeleteError && (
             <p className="text-red-500 text-xs mt-2">{projectDeleteError}</p>
           )}
+          <div className="mt-6 w-full">
+            <h3 className="text-lg font-semibold mb-2 text-gray-950">History</h3>
+            {isHistoryLoading ? (
+              <p className="text-gray-600 text-sm">Loading...</p>
+            ) : historyError ? (
+              <p className="text-red-500 text-sm">{historyError}</p>
+            ) : chatHistory.length === 0 ? (
+              <p className="text-gray-500 italic text-sm">No questions yet.</p>
+            ) : (
+              <ul className="space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+                {chatHistory.map((entry) => (
+                  <li key={entry.id} className="">
+                    <button
+                      className={`text-gray-950 text-base truncate w-full text-left hover:underline focus:outline-none ${expandedHistoryId === entry.id ? 'font-bold' : ''}`}
+                      title={entry.question}
+                      onClick={() => setExpandedHistoryId(expandedHistoryId === entry.id ? null : entry.id)}
+                    >
+                      {(entry.question).toLowerCase()}
+                    </button>
+                    {expandedHistoryId === entry.id && (
+                      <div className="bg-gray-50 p-2 mt-1 text-gray-800 text-sm whitespace-pre-line">
+                        <span className="font-semibold text-base text-gray-950">Answer:</span> {entry.answer}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </aside>
       <div className="flex-1 p-6">
-        <h1 className="container_header">
-          RFP Q&A Response Generator for {projectName}
-        </h1>
-        <p className="container_desc">
-          RAG-powered system for generating hosting platform and InfoSec RFQ
-          responses
-        </p>
+        <h1 className="text-left self-start font-bold text-2xl mb-4">
+          Project: {projectName}
+        </h1> 
         <Tabs defaultValue="generate" className="w-full">
           <TabsList className="tablist">
             <TabsTrigger value="generate" className="tabsTrigger">
@@ -257,7 +323,7 @@ export default function ChatInterface({
           <TabsContent value="generate">
             <div className="tabContent">
               <div>
-                <h2 className="tabContentHeader">RFP/RFQ Question</h2>
+                {/* <h2 className="tabContentHeader">RFP/RFQ Question</h2> */}
                 <p className="text-sm text-gray-600 mb-2">
                   Generating response for project:{" "}
                   <span className="font-semibold text-blue-700">

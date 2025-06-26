@@ -4,9 +4,9 @@ import { getDocuments } from "@/lib/db"; // MongoDB document fetching
 import { loadProjectFaissStore } from "@/lib/server/faiss";
 
 // const OLLAMA_CHAT_MODEL = "llama2";
-const OLLAMA_CHAT_MODEL = "qwen3:0.6b";
-// const OLLAMA_CHAT_MODEL = "llama3:instruct";
-
+// const OLLAMA_CHAT_MODEL = "qwen3:0.6b";
+// const OLLAMA_CHAT_MODEL = "llama3:8b";
+const OLLAMA_CHAT_MODEL = "tinydolphin:1.1b";
 interface FormattedDocumentEntry {
   id: string;
   filename: string;
